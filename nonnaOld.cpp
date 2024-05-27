@@ -14,30 +14,6 @@ struct Centrino
     float barycenter;
 };
 
-int partitionCentrini(vector<Centrino>& arr, int low, int high) 
-{
-    int pivot = arr[high].median;
-    int i = (low - 1);
-
-    for (int j = low; j <= high - 1; j++) {
-        if (arr[j].median <= pivot) {
-            i++;
-            swap(arr[i], arr[j]);
-        }
-    }
-    swap(arr[i + 1], arr[high]);
-    return (i + 1);
-}
-
-void quickSortCentrini(vector<Centrino>& arr, int low, int high) 
-{
-    if (low < high) {
-        int pi = partitionCentrini(arr, low, high);
-        quickSortCentrini(arr, low, pi - 1);
-        quickSortCentrini(arr, pi + 1, high);
-    }
-}
-
 class FenwickTree {
     public:
         FenwickTree(int size): size(size) 
@@ -81,6 +57,19 @@ class FenwickTree {
         vector<int> tree;
 };
 
+int calcolaIncroci(const vector<Centrino>& centrini)
+{
+    int incroci = 0;
+    FenwickTree tree(G);
+    for (int i = 0; i < C; ++i) {
+        for (int j = 0; j < centrini[i].gomitoli.size(); ++j) {
+            incroci += tree.rangeQuery(centrini[i].gomitoli[j] - C + 1, G);
+            tree.update(centrini[i].gomitoli[j]- C + 1, 1);
+        }
+    }
+    return incroci;
+}
+
 void setBarycenter(vector<Centrino>& centrini)
 {
     float sum = 0;
@@ -96,17 +85,33 @@ void setBarycenter(vector<Centrino>& centrini)
         else {
             centrini[i].barycenter = 0;
         }
-        
-        std::cout << "Centrino " << centrini[i].id << " barycenter: " << centrini[i].barycenter << std::endl;
+
     }
 }
 
-void orderByBarycenter (vector<Centrino>& centrini)
+void orderByBarycenter (vector<Centrino>& centrini, int incroci)
 {
     setBarycenter(centrini);
-    sort(centrini.begin(), centrini.end(), [](const Centrino& a, const Centrino& b) {
+    int  minIncroci = incroci;
+    int notImprovementeCount = 0, notImprovementeLimit = 100;
+    vector<Centrino> minCentrini = centrini;
+    while(notImprovementeCount < notImprovementeLimit) 
+    {
+        sort(centrini.begin(), centrini.end(), [](const Centrino& a, const Centrino& b) {
         return a.barycenter < b.barycenter;
-    });
+        });
+
+        int currentIncroci = calcolaIncroci(centrini);
+
+        if (currentIncroci < minIncroci) {
+            minIncroci = currentIncroci;
+            minCentrini = centrini;
+            notImprovementeCount = 0; 
+        } else {
+            notImprovementeCount++;
+        }
+    }
+    centrini = minCentrini;
 }
 
 /**
@@ -116,20 +121,17 @@ void orderByBarycenter (vector<Centrino>& centrini)
  * 
  * @note read the input file, insert in centrini and gomitoli
 */
-void readInput(const char path[], vector<Centrino>& centrini, vector<Centrino>& tmpB, vector<Centrino>& tmpM)
+void readInput(const char path[], vector<Centrino>& centrini, vector<Centrino>& tmp)
 {
     fstream in(path, fstream::in);
     in >> C >> G >> M;
     centrini.resize(C);
-    tmpB.resize(C);
-    tmpM.resize(C);
+    tmp.resize(C);
 
     for (int i = 0; i < C; i++)
     {
         centrini[i].id = i;
-        tmpB[i].id = i;
-        tmpM[i].id =i;
-
+        tmp[i].id = i;
     }
     
     for (int i = 0; i < M; ++i) {
@@ -140,29 +142,13 @@ void readInput(const char path[], vector<Centrino>& centrini, vector<Centrino>& 
         auto pos = lower_bound(gomitoli.begin(), gomitoli.end(), g);
         gomitoli.insert(pos, g);
 
-        auto& gomitoliTmpB = tmpB[c].gomitoli;
-        auto posTmpB = lower_bound(gomitoliTmpB.begin(), gomitoliTmpB.end(), g);
-        gomitoliTmpB.insert(posTmpB, g);
-
-        auto& gomitoliTmpM = tmpM[c].gomitoli;
-        auto posTmpM = lower_bound(gomitoliTmpM.begin(), gomitoliTmpM.end(), g);
-        gomitoliTmpM.insert(posTmpM, g);
+        auto& gomitoliTmp = tmp[c].gomitoli;
+        auto posTmp = lower_bound(gomitoliTmp.begin(), gomitoliTmp.end(), g);
+        gomitoliTmp.insert(posTmp, g);
     }
     in.close();
 }
 
-int calcolaIncroci(const vector<Centrino>& centrini)
-{
-    int incroci = 0;
-    FenwickTree tree(G);
-    for (int i = 0; i < C; ++i) {
-        for (int j = 0; j < centrini[i].gomitoli.size(); ++j) {
-            incroci += tree.rangeQuery(centrini[i].gomitoli[j] - C + 1, G);
-            tree.update(centrini[i].gomitoli[j]- C + 1, 1);
-        }
-    }
-    return incroci;
-}
 
 void writeOutput(int incroci, const std::vector<Centrino>& centrini)
 {
@@ -184,47 +170,31 @@ int main()
 {
     // helpers::setup(); //delete: setup the timer and timeout
 
-    int tmpIncrociBarycenter=0, incroci=0, tmpIncrociMedian=0;
+    int tmpIncroci=0, incroci=0;
     vector<Centrino> centrini;
-    vector<Centrino> tmpB;
-    vector<Centrino> tmpM;
-    // char path[] = "input/input0.txt";
-    char path[] = "input.txt";
+    vector<Centrino> tmp;
+    char path[] = "input/input12.txt";
+    // char path[] = "input.txt";
 
-    readInput(path, centrini, tmpB, tmpM);
-    
-    orderByBarycenter(tmpB);
-    quickSortCentrini(tmpM,  0, tmpM.size() - 1);
-
-    tmpIncrociBarycenter =  calcolaIncroci(tmpB);
-    tmpIncrociMedian = calcolaIncroci(tmpM);
+    readInput(path, centrini, tmp);
     incroci = calcolaIncroci(centrini);
+    
+    orderByBarycenter(tmp,incroci);
+    tmpIncroci =  calcolaIncroci(tmp);
 
-    if (tmpIncrociBarycenter>tmpIncrociMedian) {
-        if(tmpIncrociMedian>incroci){
-            writeOutput(incroci, centrini);
-        }
-        else{
-            writeOutput(tmpIncrociMedian, tmpM);
-
-        }
+    if (incroci < tmpIncroci) {
+        writeOutput(incroci, centrini);
+        std::cout << "Incroci: " << incroci << std::endl;
+    } else {
+        writeOutput(tmpIncroci, tmp);
+        std::cout << "Incroci: " << tmpIncroci << std::endl;
     }
-    else{
-        if(tmpIncrociBarycenter>incroci){
-            writeOutput(incroci, centrini);
-
-        }
-        else{
-            writeOutput(tmpIncrociBarycenter, tmpB);
-
-        }
-
-    }
-        
-       
 
     // std::cout << "C: " << C << " G: " << G << " M: " << M << std::endl;
     // std::cout << "Incroci: " << incroci << std::endl;
+
+    // std::cout << "Incroci: " << tmpIncroci << std::endl;
+
     
     return 0;
 }
