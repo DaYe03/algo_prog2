@@ -1,6 +1,7 @@
 #include <iostream>
 #include <fstream>
 #include <vector>
+#include <algorithm>
 
 #include "nonna.h"
 
@@ -10,31 +11,8 @@ struct Centrino
 {
     int id;
     vector<int> gomitoli;
+    float barycenter;
 };
-
-int partition(vector<int>& arr, int low, int high) 
-{
-    int pivot = arr[high];
-    int i = (low - 1); 
-
-    for (int j = low; j <= high - 1; j++) {
-        if (arr[j] <= pivot) {
-            i++;
-            swap(arr[i], arr[j]);
-        }
-    }
-    swap(arr[i + 1], arr[high]);
-    return (i + 1);
-}
-
-void quickSort(vector<int>& arr, int low, int high) 
-{
-    if (low < high) {
-        int pi = partition(arr, low, high);
-        quickSort(arr, low, pi - 1);
-        quickSort(arr, pi + 1, high);
-    }
-}
 
 class FenwickTree {
     public:
@@ -79,71 +57,145 @@ class FenwickTree {
         vector<int> tree;
 };
 
-/**
- * Read input from file
- * @param path: path to the input file
- * @param centrini: vector of centrini
- * 
- * @note read the input file, insert in centrini ad quickSort gomitoli 
-*/
-void readInput(char path[], vector<Centrino>& centrini)
-{
-    fstream in(path, fstream::in);
-    in >> C >> G >> M;
-    centrini.resize(C);
-    for (int i = 0; i < M; ++i) {
-        int c, g;
-        in >> c >> g;
-        centrini[c].id = c;
-        centrini[c].gomitoli.push_back(g);
-    }
-    in.close();
-    for (int i = 0; i < C; ++i) {
-        quickSort(centrini[i].gomitoli, 0, centrini[i].gomitoli.size() - 1);
-    }
-}
-
 int calcolaIncroci(const vector<Centrino>& centrini)
 {
     int incroci = 0;
     FenwickTree tree(G);
     for (int i = 0; i < C; ++i) {
         for (int j = 0; j < centrini[i].gomitoli.size(); ++j) {
-            tree.print();//delete: debug
-            cout<< "Centrino: " << centrini[i].id << " Gomitolo: " << centrini[i].gomitoli[j] << endl; //delete: debug
-
             incroci += tree.rangeQuery(centrini[i].gomitoli[j] - C + 1, G);
             tree.update(centrini[i].gomitoli[j]- C + 1, 1);
-
-            cout << "Incroci: " << incroci << endl; //delete: debug
         }
     }
     return incroci;
 }
 
+
+void setBarycenter(vector<Centrino>& centrini)
+{
+    float sum = 0;
+    for (int i = 0; i < centrini.size(); i++) {
+        sum = 0;
+        if (centrini[i].gomitoli.size() != 0) {
+            for (int j = 0; j < centrini[i].gomitoli.size(); j++)
+            {
+                sum += centrini[i].gomitoli[j];
+            }
+            centrini[i].barycenter = sum / centrini[i].gomitoli.size();
+        }
+        else {
+            centrini[i].barycenter = 0;
+        }
+
+    }
+}
+
+void orderByBarycenter (vector<Centrino>& centrini, int incroci)
+{
+    setBarycenter(centrini);
+    int i = 0, minIncroci = incroci, notImprovementeCount = 0, notImprovementeLimit = 100;
+    vector<Centrino> minCentrini = centrini;
+    while(i < 100 && notImprovementeCount < notImprovementeLimit) 
+    {
+        sort(centrini.begin(), centrini.end(), [](const Centrino& a, const Centrino& b) {
+        return a.barycenter < b.barycenter;
+        });
+
+        int currentIncroci = calcolaIncroci(centrini);
+
+        if (currentIncroci < minIncroci) {
+            minIncroci = currentIncroci;
+            minCentrini = centrini;
+            notImprovementeCount = 0; 
+        } else {
+            notImprovementeCount++;
+        }
+
+        i++;
+    }
+    centrini = minCentrini;
+}
+
+/**
+ * Read input from file
+ * @param path: path to the input file
+ * @param centrini: vector of centrini
+ * 
+ * @note read the input file, insert in centrini and gomitoli
+*/
+void readInput(const char path[], vector<Centrino>& centrini, vector<Centrino>& tmp)
+{
+    fstream in(path, fstream::in);
+    in >> C >> G >> M;
+    centrini.resize(C);
+    tmp.resize(C);
+
+    for (int i = 0; i < C; i++)
+    {
+        centrini[i].id = i;
+        tmp[i].id = i;
+    }
+    
+    for (int i = 0; i < M; ++i) {
+        int c, g;
+        in >> c >> g;
+
+        auto& gomitoli = centrini[c].gomitoli;
+        auto pos = lower_bound(gomitoli.begin(), gomitoli.end(), g);
+        gomitoli.insert(pos, g);
+
+        auto& gomitoliTmp = tmp[c].gomitoli;
+        auto posTmp = lower_bound(gomitoliTmp.begin(), gomitoliTmp.end(), g);
+        gomitoliTmp.insert(posTmp, g);
+    }
+    in.close();
+}
+
+
+void writeOutput(int incroci, const std::vector<Centrino>& centrini)
+{
+    std::fstream out("output.txt", std::fstream::out);
+    if (!out) {
+        std::cerr << "Error opening file for writing." << std::endl;
+        return;
+    }
+
+    out << incroci << std::endl;
+    for (int i = 0; i < centrini.size(); i++) {
+        out << centrini[i].id << " ";
+    }
+    out << std::endl << "***";
+    out.close();
+}
+
 int main()
 {
-    helpers::setup(); //delete: setup the timer and timeout
+    // helpers::setup(); //delete: setup the timer and timeout
 
-    int incroci=0;
+    int tmpIncroci=0, incroci=0;
     vector<Centrino> centrini;
-    char path[] = "input/input19.txt";
+    vector<Centrino> tmp;
+    // char path[] = "input/input12.txt";
+    char path[] = "input.txt";
 
-    readInput(path, centrini);
-
+    readInput(path, centrini, tmp);
     incroci = calcolaIncroci(centrini);
+    
+    orderByBarycenter(tmp,incroci);
+    tmpIncroci =  calcolaIncroci(tmp);
 
-    //delete: print status and elapsed time
-    cout << "C: " << C << " G: " << G << " M: " << M << endl;
-    for (int i = 0; i < C; ++i) {
-        cout << "Centrino " << centrini[i].id << ": ";
-        for (int j = 0; j < centrini[i].gomitoli.size(); ++j) {
-            cout << centrini[i].gomitoli[j] << " ";
-        }
-        cout << endl;
+    if (incroci < tmpIncroci) {
+        writeOutput(incroci, centrini);
+    } else {
+        writeOutput(tmpIncroci, tmp);
     }
-    cout << "Incroci: " << incroci << endl;
-    cout << "Elapsed time: " << helpers::get_elapsed_time() << endl;
-    cout << "Has reached timeout? (0:false, 1:true): " << helpers::has_reached_timeout() << endl;
+
+    // std::cout << "C: " << C << " G: " << G << " M: " << M << std::endl;
+    // std::cout << "Incroci: " << incroci << std::endl;
+
+    // std::cout << "Incroci: " << tmpIncroci << std::endl;
+
+    
     return 0;
 }
+
