@@ -11,6 +11,7 @@ struct Centrino
 {
     vector<int> gomitoli;
     float barycenter;
+    int barycenterRandom;
     float mediana;
 };
 
@@ -98,9 +99,13 @@ void setBarycenter(vector<Centrino>& centrini)
                 sum += centrini[i].gomitoli[j];
             }
             centrini[i].barycenter = sum / centrini[i].gomitoli.size();
+            centrini[i].barycenterRandom = sum / centrini[i].gomitoli.size();
+
         }
         else {
+            
             centrini[i].barycenter = 0; // if there are no gomitoli the barycenter is 0
+            centrini[i].barycenterRandom = 0;
         }
     }
 }
@@ -128,6 +133,38 @@ int orderByBarycenter (vector<int> &permutation,vector<Centrino>& centrini, int 
         sort(permutation.begin(), permutation.end(), [&centrini](int a, int b) {
             return centrini[a].barycenter < centrini[b].barycenter;
         });
+
+        int currentIncroci = calculateCross(permutation, centrini);
+
+        if (currentIncroci < minIncroci) {
+            minIncroci = currentIncroci;
+            minPermutation = permutation;
+            notImprovementeCount = 0; 
+        } else {
+            notImprovementeCount++;
+        }
+    }
+    permutation = minPermutation;
+    return minIncroci;
+}
+
+int orderByBarycenterRandom (vector<int> &permutation,vector<Centrino>& centrini, int incroci)
+{
+    int notImprovementeLimit = 100, notImprovementeCount = 0;
+
+    int  minIncroci = incroci;
+    vector<int> minPermutation = permutation;
+    
+    setBarycenter(centrini);
+
+
+    while(notImprovementeCount < notImprovementeLimit) // if there are no improvement stop
+    {
+        sort(permutation.begin(), permutation.end(), [&centrini](int a, int b) {
+            return centrini[a].barycenterRandom < centrini[b].barycenterRandom;
+        });
+
+
 
         int currentIncroci = calculateCross(permutation, centrini);
 
@@ -252,16 +289,18 @@ void writeOutput(int incroci, const vector<int>& permutation)
 int main()
 {
     vector<Centrino> centrini; // vector of centrini 
-    vector<int> start, barycenter, mediana; //permutation of centrini
-    int startCross, barycenterCross, medianaCross; //number of cross
+    vector<int> start, barycenter, mediana, barycenterRandom; //permutation of centrini
+    int startCross, barycenterCross, medianaCross, barycenterCrossRandom; //number of cross
 
     char path[] = "input.txt"; // path to the input file
+    //char path[] = "input/input19.txt";
     
     readInput(path, centrini);
 
     start.resize(centrini.size());
     barycenter.resize(centrini.size());
     mediana.resize(centrini.size());
+    barycenterRandom.resize(centrini.size());
 
     // initialize the permutation
     for (size_t i = 0; i < start.size(); ++i) {
@@ -269,19 +308,32 @@ int main()
     }
     barycenter = start;
     mediana = start;
+    barycenterRandom = start;
 
     startCross = calculateCross(start, centrini);
     barycenterCross = orderByBarycenter(barycenter, centrini, startCross);
     medianaCross = orderByMediana(mediana, centrini, startCross);
+    barycenterCrossRandom = orderByBarycenterRandom(barycenterRandom,centrini, startCross);
 
-    if (startCross < barycenterCross && startCross < medianaCross) {
+    cout<<startCross<<" "<<barycenterCross<<" "<<medianaCross<<" "<<barycenterCrossRandom<<endl;
+
+    if (startCross <= barycenterCross && startCross <= medianaCross && startCross <= barycenterCrossRandom) {
         writeOutput(startCross, start);
-    } else if (barycenterCross < startCross && barycenterCross < medianaCross) {
+        cout<<"1"<<endl;
+    } else if (barycenterCross <= startCross && barycenterCross <= medianaCross && barycenterCross <= barycenterCrossRandom) {
         writeOutput(barycenterCross, barycenter);
-    } else {
+        cout<<"2"<<endl;
+
+    } else if (medianaCross <= startCross && medianaCross <= barycenterCross &&  medianaCross <= barycenterCrossRandom) {
         writeOutput(medianaCross, mediana);
+        cout<<"3"<<endl;
+
+    }
+    else {
+        writeOutput(barycenterCrossRandom, barycenterRandom);
+        cout<<"4"<<endl;
+
     }
 
     return 0;
 }
-
