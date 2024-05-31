@@ -2,6 +2,7 @@
 #include <fstream>
 #include <vector>
 #include <algorithm>
+#include <climits>
 
 #include "nonna.h"
 
@@ -11,7 +12,6 @@ struct Centrino
 {
     vector<int> gomitoli;
     float barycenter;
-    int barycenterRandom;
     float mediana;
 };
 
@@ -99,16 +99,16 @@ void setBarycenter(vector<Centrino>& centrini)
                 sum += centrini[i].gomitoli[j];
             }
             centrini[i].barycenter = sum / centrini[i].gomitoli.size();
-            centrini[i].barycenterRandom = sum / centrini[i].gomitoli.size();
 
         }
         else {
             
             centrini[i].barycenter = 0; // if there are no gomitoli the barycenter is 0
-            centrini[i].barycenterRandom = 0;
         }
     }
 }
+
+// vector<pair<int,int>> heuristicPairSelection ( const )
 
 /**
  * Order the permutation by barycenter
@@ -121,63 +121,13 @@ void setBarycenter(vector<Centrino>& centrini)
 */
 int orderByBarycenter (vector<int> &permutation,vector<Centrino>& centrini, int incroci)
 {
-    int notImprovementeLimit = 100, notImprovementeCount = 0;
-
-    int  minIncroci = incroci;
-    vector<int> minPermutation = permutation;
-    
     setBarycenter(centrini);
 
-    while(notImprovementeCount < notImprovementeLimit) // if there are no improvement stop
-    {
-        sort(permutation.begin(), permutation.end(), [&centrini](int a, int b) {
-            return centrini[a].barycenter < centrini[b].barycenter;
-        });
+    sort(permutation.begin(), permutation.end(), [&centrini](int a, int b) {
+        return centrini[a].barycenter < centrini[b].barycenter;
+    });
 
-        int currentIncroci = calculateCross(permutation, centrini);
-
-        if (currentIncroci < minIncroci) {
-            minIncroci = currentIncroci;
-            minPermutation = permutation;
-            notImprovementeCount = 0; 
-        } else {
-            notImprovementeCount++;
-        }
-    }
-    permutation = minPermutation;
-    return minIncroci;
-}
-
-int orderByBarycenterRandom (vector<int> &permutation,vector<Centrino>& centrini, int incroci)
-{
-    int notImprovementeLimit = 100, notImprovementeCount = 0;
-
-    int  minIncroci = incroci;
-    vector<int> minPermutation = permutation;
-    
-    setBarycenter(centrini);
-
-
-    while(notImprovementeCount < notImprovementeLimit) // if there are no improvement stop
-    {
-        sort(permutation.begin(), permutation.end(), [&centrini](int a, int b) {
-            return centrini[a].barycenterRandom < centrini[b].barycenterRandom;
-        });
-
-
-
-        int currentIncroci = calculateCross(permutation, centrini);
-
-        if (currentIncroci < minIncroci) {
-            minIncroci = currentIncroci;
-            minPermutation = permutation;
-            notImprovementeCount = 0; 
-        } else {
-            notImprovementeCount++;
-        }
-    }
-    permutation = minPermutation;
-    return minIncroci;
+    return calculateCross(permutation, centrini);;
 }
 
 /**
@@ -213,31 +163,73 @@ void setMediana(vector<Centrino>& centrini)
 */
 int orderByMediana (vector<int> &permutation,vector<Centrino>& centrini, int incroci)
 {
-    int notImprovementeLimit = 100, notImprovementeCount = 0;
-
-    int  minIncroci = incroci;
-    vector<int> minPermutation = permutation;
-    
     setMediana(centrini);
+    sort(permutation.begin(), permutation.end(), [&centrini](int a, int b) {
+        return centrini[a].mediana < centrini[b].mediana;
+    });
 
-    while(notImprovementeCount < notImprovementeLimit) // if there are no improvement stop
-    {
-        sort(permutation.begin(), permutation.end(), [&centrini](int a, int b) {
-            return centrini[a].mediana < centrini[b].mediana;
-        });
+    return calculateCross(permutation, centrini);
+}
 
-        int currentIncroci = calculateCross(permutation, centrini);
+/**
+ * Heuristic Pair Selection
+ * @param permutation: vector of permutation
+ * @param centrini: vector of centrini
+ * @return the pair of nodes
+ * 
+ * @note select the pair of nodes with the highest number of gomitoli
+*/
+vector<pair<int, int>> heuristicPairSelection(const vector<int>& permutation, const vector<Centrino>& centrini)
+{
+    vector<pair<int, int>> sortedPermutation;
+    for (int i = 0; i < permutation.size(); ++i) {
+        sortedPermutation.emplace_back(i, permutation[i]);
+    }
+    sort(sortedPermutation.begin(), sortedPermutation.end(), [&centrini](const pair<int, int>& a, const pair<int, int>& b) {
+        return centrini[a.second].gomitoli.size() > centrini[b.second].gomitoli.size();
+    });
 
-        if (currentIncroci < minIncroci) {
-            minIncroci = currentIncroci;
-            minPermutation = permutation;
-            notImprovementeCount = 0; 
-        } else {
-            notImprovementeCount++;
+    size_t tenPercentSize = sortedPermutation.size();
+    if (tenPercentSize >= 1300 && tenPercentSize < 3000){
+        tenPercentSize = sortedPermutation.size() / 1.6;
+    }
+    
+    vector<pair<int, int>> candidatePairs;
+
+    for (size_t i = 0; i < tenPercentSize; ++i) {
+        for (size_t j = i + 1; j < tenPercentSize; ++j) {
+            if (abs(sortedPermutation[i].first - sortedPermutation[j].first) <= 2) {
+                candidatePairs.emplace_back(sortedPermutation[i].first, sortedPermutation[j].first);
+            }
         }
     }
-    permutation = minPermutation;
-    return minIncroci;	
+    return candidatePairs;
+}
+
+/**
+ * Pairwise Node Swapping with Heuristics
+ * @param permutation: vector of permutation
+ * @param centrini: vector of centrini
+ * @param currentCrossings: number of cross to compare
+ * @return the number of cross
+ * 
+ * @note swap the pair of nodes and calculate the number of cross
+*/
+int pairwiseNodeSwappingWithHeuristics(vector<int>& permutation, const vector<Centrino>& centrini, int currentCrossings)
+{
+    vector<pair<int, int>> candidatePairs = heuristicPairSelection(permutation, centrini);
+    for (const auto& pair : candidatePairs) {
+        int u = pair.first, v = pair.second;
+        iter_swap(permutation.begin() + u, permutation.begin() + v);
+
+        int newCrossings = calculateCross(permutation, centrini);
+        if (newCrossings < currentCrossings) {
+            currentCrossings = newCrossings;
+        } else {
+            iter_swap(permutation.begin() + u, permutation.begin() + v);
+        }
+    }
+    return currentCrossings;
 }
 
 /**
@@ -288,19 +280,21 @@ void writeOutput(int incroci, const vector<int>& permutation)
 
 int main()
 {
+    
+    // helpers::setup(); //delete: setup
     vector<Centrino> centrini; // vector of centrini 
-    vector<int> start, barycenter, mediana, barycenterRandom; //permutation of centrini
-    int startCross, barycenterCross, medianaCross, barycenterCrossRandom; //number of cross
+    vector<int> start, barycenter, mediana, heuristicBaricenter; //permutation of centrini
+    int startCross= INT_MAX, barycenterCross = INT_MAX, medianaCross = INT_MAX, heuristicBaricenterCross = INT_MAX; //number of cross
 
     char path[] = "input.txt"; // path to the input file
-    //char path[] = "input/input19.txt";
+    // char path[] = "input/input19.txt";
     
     readInput(path, centrini);
 
     start.resize(centrini.size());
     barycenter.resize(centrini.size());
     mediana.resize(centrini.size());
-    barycenterRandom.resize(centrini.size());
+    heuristicBaricenter.resize(centrini.size());
 
     // initialize the permutation
     for (size_t i = 0; i < start.size(); ++i) {
@@ -308,32 +302,27 @@ int main()
     }
     barycenter = start;
     mediana = start;
-    barycenterRandom = start;
+    heuristicBaricenter = start;
 
     startCross = calculateCross(start, centrini);
     barycenterCross = orderByBarycenter(barycenter, centrini, startCross);
     medianaCross = orderByMediana(mediana, centrini, startCross);
-    barycenterCrossRandom = orderByBarycenterRandom(barycenterRandom,centrini, startCross);
+    heuristicBaricenter = barycenter;
+    heuristicBaricenterCross = pairwiseNodeSwappingWithHeuristics(heuristicBaricenter, centrini, barycenterCross);
 
-    cout<<startCross<<" "<<barycenterCross<<" "<<medianaCross<<" "<<barycenterCrossRandom<<endl;
-
-    if (startCross <= barycenterCross && startCross <= medianaCross && startCross <= barycenterCrossRandom) {
+    if (startCross <= barycenterCross && startCross <= medianaCross && startCross <= heuristicBaricenterCross) {
         writeOutput(startCross, start);
-        cout<<"1"<<endl;
-    } else if (barycenterCross <= startCross && barycenterCross <= medianaCross && barycenterCross <= barycenterCrossRandom) {
+    } else if (barycenterCross <= startCross && barycenterCross <= medianaCross && barycenterCross <= heuristicBaricenterCross) {
         writeOutput(barycenterCross, barycenter);
-        cout<<"2"<<endl;
-
-    } else if (medianaCross <= startCross && medianaCross <= barycenterCross &&  medianaCross <= barycenterCrossRandom) {
+    } else if (medianaCross <= startCross && medianaCross <= barycenterCross && medianaCross <= heuristicBaricenterCross) {
         writeOutput(medianaCross, mediana);
-        cout<<"3"<<endl;
-
+    } else {
+        writeOutput(heuristicBaricenterCross, heuristicBaricenter);
     }
-    else {
-        writeOutput(barycenterCrossRandom, barycenterRandom);
-        cout<<"4"<<endl;
 
-    }
+    //delete: print time
+    // cout << "Time: " << helpers::get_elapsed_time() / 1000000.0 << " seconds" << endl;
+    // cout << "Timeout: " << helpers::has_reached_timeout() << endl;
 
     return 0;
 }
